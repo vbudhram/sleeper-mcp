@@ -1,0 +1,13 @@
+.venv/
+.env
+.env.*
+!.env.example
+config.json
+.state/
+*.sqlite*
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mcp.json
+dist/
+*.egg-info/

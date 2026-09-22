@@ -1,0 +1,19 @@
+{
+  "user_id": "<your numeric Sleeper user id>",
+  "timezone": "America/New_York",
+  "leagues": [
+    {
+      "league_id": "<league id>",
+      "label": "League 1",
+      "chat_enabled": true
+    }
+  ],
+  "cache": {
+    "mode": "normal",
+    "league_settings_seconds": 3600,
+    "league_rosters_seconds": 60,
+    "chat_seconds": 300,
+    "chat_history_seconds": 86400,
+    "projections_seconds": 300
+  }
+}

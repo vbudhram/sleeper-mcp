@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "sleeper": {
+      "command": "/path/to/sleeper-mcp/.venv/bin/sleeper-mcp",
+      "env": {
+        "SLEEPER_CONFIG": "/path/to/sleeper-mcp/config.json",
+        "SLEEPER_STATE_DIR": "/path/to/sleeper-mcp/.state",
+        "SLEEPER_SESSION_TOKEN": "${SLEEPER_SESSION_TOKEN}"
+      }
+    }
+  }
+}

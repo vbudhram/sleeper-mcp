@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sleeper-manager-mcp"
+version = "0.1.0"
+description = "Multiple-league Sleeper tools for scheduled fantasy manager agents"
+requires-python = ">=3.11"
+dependencies = ["mcp>=1.28,<2", "httpx>=0.28,<1", "pydantic>=2,<3"]
+
+license = "MIT"
+readme = "README.md"
+
+[project.scripts]
+sleeper-mcp = "sleeper_mcp.server:main"
+sleeper-manager = "sleeper_mcp.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "pytest-asyncio>=0.24,<2", "ruff>=0.11,<1"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sleeper_mcp"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100

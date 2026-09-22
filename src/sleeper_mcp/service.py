@@ -28,7 +28,7 @@ class Manager:
             raise ValueError("Season must contain four digits")
         return await self.client.rest(f"/user/{self.config.user_id}/leagues/nfl/{season}", 300)
 
-    async def league_data(self, league_id, resource, week=None):
+    async def league_data(self, league_id, resource, week=None, names=False):
         self.config.league(league_id)
         allowed = {
             "settings": "",
@@ -47,10 +47,31 @@ class Manager:
             if week is None:
                 raise ValueError("Week is required")
             valid_week(week)
-        return await self.client.rest(
+        result = await self.client.rest(
             f"/league/{league_id}" + allowed[resource],
             300 if resource in {"settings", "users", "drafts"} else 60,
         )
+        if names and resource in {"rosters", "matchups"} and isinstance(result.get("data"), list):
+            result["player_names"] = await self.player_names(result["data"])
+        return result
+
+    async def player_names(self, rows):
+        """Map every player ID in the given roster or matchup rows to a display name."""
+        ids = set()
+        for row in rows:
+            for slot in ("players", "starters", "reserve", "taxi"):
+                ids.update(x for x in (row.get(slot) or []) if isinstance(x, str))
+        directory = await self.client.rest("/players/nfl", 86400)
+        players = directory.get("data")
+        if not ids or not isinstance(players, dict):
+            return None
+        names = {}
+        for pid in sorted(ids):
+            player = players.get(pid)
+            if player:
+                name = f"{player.get('first_name', '')} {player.get('last_name', '')}".strip()
+                names[pid] = f"{name} {player.get('position') or ''}-{player.get('team') or 'FA'}"
+        return names
 
     async def players(self, query="", position=None, limit=25, offset=0, league_id=None):
         if not 1 <= limit <= 100 or offset < 0:

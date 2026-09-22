@@ -19,7 +19,7 @@ For raw league data, an agent with `curl` can use the public Sleeper REST API. T
 
 - The player directory is a 14 MB JSON blob with no search. The server caches it once a day and adds name, position, and unrostered-in-this-league filters.
 - Week projections arrive as raw stat lines. The server returns PPR, half PPR, and standard point totals with names, opponent, and injury status.
-- Matchups and rosters use player IDs only. The server resolves names where they are needed.
+- Matchups and rosters use player IDs only. The server attaches a `player_names` map to both.
 
 **Built in, so the agent does not have to build it**
 
@@ -177,7 +177,7 @@ Then read `docs/manager-prompt.md` for how to act as a fantasy manager with thes
 | --- | --- |
 | `discover_leagues` | Leagues for the configured user and a season |
 | `get_nfl_state` | Current NFL season and week |
-| `get_league_data` | Settings, rosters, users, matchups, transactions, traded picks, drafts, or brackets |
+| `get_league_data` | Settings, rosters, users, matchups, transactions, traded picks, drafts, or brackets. Rosters and matchups include a `player_names` map |
 | `get_draft_data` | A verified league draft and its picks |
 | `search_players` | Player directory search |
 | `get_unrostered_players` | Players absent from a league's rosters, with waiver clear times |

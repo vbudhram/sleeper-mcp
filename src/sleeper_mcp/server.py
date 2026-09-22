@@ -52,8 +52,8 @@ async def get_league_data(
     ],
     week: int | None = None,
 ) -> dict:
-    """Read a configured league resource. Matchups and transactions require a week."""
-    return await manager().league_data(league_id, resource, week)
+    """Read a configured league resource with player names. Matchups and transactions require a week."""
+    return await manager().league_data(league_id, resource, week, names=True)
 
 
 @mcp.tool(annotations=READ)

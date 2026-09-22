@@ -413,6 +413,30 @@ async def test_unrostered_players_merge_waiver_clears(store, config, monkeypatch
     await manager.client.close()
 
 
+async def test_rosters_and_matchups_include_player_names(store, config):
+    def respond(request):
+        if request.url.path.endswith("/rosters"):
+            return httpx.Response(200, json=[{"players": ["1", "NE"], "starters": ["1"]}])
+        if "/matchups/" in request.url.path:
+            return httpx.Response(200, json=[{"starters": ["1", "0"], "players": ["1", "9"]}])
+        return httpx.Response(
+            200,
+            json={
+                "1": {"first_name": "A", "last_name": "One", "position": "RB", "team": "SF"},
+                "NE": {"first_name": "New England", "last_name": "Patriots", "position": "DEF"},
+            },
+        )
+
+    manager = Manager(config, store, SleeperClient(store, httpx.MockTransport(respond)))
+    rosters = await manager.league_data("11", "rosters", names=True)
+    assert rosters["player_names"] == {"1": "A One RB-SF", "NE": "New England Patriots DEF-FA"}
+    matchups = await manager.league_data("11", "matchups", 1, names=True)
+    assert matchups["player_names"] == {"1": "A One RB-SF"}
+    assert "player_names" not in await manager.league_data("11", "users", names=True)
+    assert "player_names" not in await manager.league_data("11", "rosters")
+    await manager.client.close()
+
+
 async def test_week_projections_filter_rostered_and_keep_points(store, config):
     def respond(request):
         assert "authorization" not in request.headers

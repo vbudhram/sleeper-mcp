@@ -54,7 +54,7 @@ League IDs come from `config.json`. Invalid IDs fail before any request.
 | --- | --- | --- |
 | `discover_leagues` | `season` | Find leagues for the configured user |
 | `get_nfl_state` | none | Current season and week |
-| `get_league_data` | `league_id`, `resource`, `week` | Settings, rosters, users, matchups, transactions, traded picks, drafts, brackets. Matchups and transactions need a week |
+| `get_league_data` | `league_id`, `resource`, `week` | Settings, rosters, users, matchups, transactions, traded picks, drafts, brackets. Matchups and transactions need a week. Rosters and matchups add `player_names`, a map from player ID to `Name POS-TEAM` |
 | `get_draft_data` | `league_id`, `draft_id` | A verified league draft and its picks |
 | `search_players` | query fields | Daily player directory |
 | `get_unrostered_players` | `league_id` and filters | Players absent from league rosters. A player is on waivers while `waiver_clears_at` is in the future |

@@ -55,19 +55,24 @@ League IDs come from `config.json`. Invalid IDs fail before any request.
 | `discover_leagues` | `season` | Find leagues for the configured user |
 | `get_nfl_state` | none | Current season and week |
 | `get_league_data` | `league_id`, `resource`, `week` | Settings, rosters, users, matchups, transactions, traded picks, drafts, brackets. Matchups and transactions need a week. Rosters and matchups add `player_names`, a map from player ID to `Name POS-TEAM` |
+| `get_matchup` | `league_id`, `week` | Both lineups for my matchup: slot, name, position, team, opponent, injury, `projected` in league scoring, `actual`, bench, and totals. Week defaults to the current NFL week |
+| `get_standings` | `league_id` | Rows ranked by wins, losses, then points for, with `team_name` and `display_name` |
+| `get_schedule` | `season`, `week` | Games with `date`, `status`, `home`, `away`, plus `bye_teams`. No kickoff time |
+| `resolve_players` | `player_ids` | Map of ID to `Name POS-TEAM`, up to 500 IDs |
 | `get_draft_data` | `league_id`, `draft_id` | A verified league draft and its picks |
 | `search_players` | query fields | Daily player directory |
 | `get_unrostered_players` | `league_id` and filters | Players absent from league rosters. A player is on waivers while `waiver_clears_at` is in the future |
-| `get_week_projections` | `season`, `week`, `position`, `category`, `limit`, `league_id` | Public projections or stats with `pts_ppr`, `pts_half_ppr`, `pts_std`. A league ID keeps only unrostered players |
-| `get_trending_players` | type and window | Sleeper add and drop counts |
+| `get_week_projections` | `season`, `week`, `position`, `category`, `limit`, `league_id` | Public projections or stats with `pts_ppr`, `pts_half_ppr`, `pts_std`. A league ID keeps only unrostered players and adds `pts_league` in that league's scoring |
+| `get_trending_players` | `kind`, `lookback_hours`, `limit` | Sleeper add and drop counts with `name`, `position`, `team` |
 | `get_player_week_stats_and_projections` | player IDs, `season`, `week` | Raw statistics and projections, no league scoring |
 | `get_league_chat` | `league_id`, `before`, `limit` | One chat page. Needs the token |
 | `search_league_chat` | `league_id`, `query`, `limit` | Search of locally stored chat only |
-| `get_manager_context` | `league_id`, `week`, `mode` | League facts, owned roster, projections, chat |
+| `get_manager_context` | `league_id`, `week`, `mode`, `sections` | League facts, owned roster, projections, chat. `sections` limits output to any of settings, rosters, users, traded_picks, matchups, transactions, stats_and_projections, chat |
 | `get_all_leagues_summary` | `week` | A context for every configured league |
 | `run_manager_review` | `league_id`, `week` | Context plus a stored public-data snapshot |
 | `get_changes_since` | `league_id`, `snapshot_id` | Differences between a snapshot and the latest one |
 | `get_data_health` | none | Configuration and limits |
+| `check_auth` | none | One authenticated request. `ok: false` with `error: auth_required` means the token expired |
 | `get_cache_status` | none | Local cache counts and policy |
 | `post_league_chat` | `league_id`, `text` | Send one chat message. Needs the token and explicit user authorization |
 | `prepare_chat_post` | `league_id`, `text`, `request_id` | Store an exact message for a browser agent to send |
@@ -77,7 +82,8 @@ League IDs come from `config.json`. Invalid IDs fail before any request.
 ## 5. Example prompts
 
 - "Pull the latest chat for both leagues."
-- "Show my roster and this week's matchup in League of Extraordinary Gentlemen."
+- "How is my week looking?" Use `get_matchup`.
+- "Show the standings." Use `get_standings`.
 - "Which unrostered running backs are trending up?"
 - "Show the top open wide receivers by week 2 PPR projection in Whiskey Dicks 2."
 - "Run a manager review for week 2 and tell me what changed since the last snapshot."

@@ -15,6 +15,7 @@ cache_mode = ContextVar("cache_mode", default=None)
 REST = "https://api.sleeper.app/v1"
 STATS = "https://api.sleeper.com"
 GRAPHQL = "https://sleeper.com/graphql"
+SCHEDULE = "https://api.sleeper.app/schedule/nfl/regular"
 FIELDS = "attachment author_display_name author_id created edited message_id parent_id parent_type pinned text text_map"
 
 
@@ -209,6 +210,16 @@ class SleeperClient:
         path = f"/{'projections' if category == 'proj' else 'stats'}/nfl/{season}/{week}"
         query = f"?season_type=regular&position={position}&order_by=pts_ppr"
         return await self.request(STATS + path + query, self.policy.projections_seconds)
+
+    async def week_projections_all(self, season, week):
+        """Read public projections for every position in one request."""
+        positions = "".join(f"&position[]={x}" for x in ("QB", "RB", "WR", "TE", "K", "DEF"))
+        path = f"/projections/nfl/{season}/{week}?season_type=regular{positions}&order_by=pts_ppr"
+        return await self.request(STATS + path, self.policy.projections_seconds)
+
+    async def schedule(self, season):
+        """Read the regular season schedule. Games carry a date and status, not a kickoff time."""
+        return await self.request(f"{SCHEDULE}/{season}", 3600)
 
     async def create_message(self, league_id, text):
         """Post one league chat message. This never reads or writes the cache."""

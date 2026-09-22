@@ -105,14 +105,42 @@ async def get_week_projections(
 async def get_trending_players(
     kind: Literal["add", "drop"] = "add", lookback_hours: int = 24, limit: int = 25
 ) -> dict:
-    """Read Sleeper add/drop trends. Popularity is not a projection."""
-    if not 1 <= lookback_hours <= 168 or not 1 <= limit <= 100:
-        raise ValueError("Invalid trend bounds")
-    result = await manager().client.rest(
-        f"/players/nfl/trending/{kind}?lookback_hours={lookback_hours}&limit={limit}", 300
-    )
-    result["attribution"] = "Sleeper"
-    return result
+    """Read Sleeper add/drop trends with player names. Popularity is not a projection."""
+    return await manager().trending(kind, lookback_hours, limit)
+
+
+@mcp.tool(annotations=READ)
+async def resolve_players(player_ids: list[str]) -> dict:
+    """Map Sleeper player IDs to 'Name POS-TEAM' display names."""
+    if not 1 <= len(player_ids) <= 500:
+        raise ValueError("Use 1 to 500 player IDs")
+    for pid in player_ids:
+        valid_id(pid)
+    return {"data": await manager().resolve(player_ids)}
+
+
+@mcp.tool(annotations=READ)
+async def get_matchup(league_id: str, week: int | None = None) -> dict:
+    """Show my lineup and my opponent's lineup for a week with names, injuries, league-scored projections, and actual points."""
+    return await manager().matchup(league_id, week)
+
+
+@mcp.tool(annotations=READ)
+async def get_standings(league_id: str) -> dict:
+    """League standings sorted by wins, then points for, with team and manager names."""
+    return await manager().standings(league_id)
+
+
+@mcp.tool(annotations=READ)
+async def get_schedule(season: str, week: int) -> dict:
+    """NFL games for a week with date and status, plus the teams on bye. No kickoff times."""
+    return await manager().schedule(season, week)
+
+
+@mcp.tool(annotations=READ)
+async def check_auth() -> dict:
+    """Make one authenticated request to test the session token. Ask for a new token when ok is false."""
+    return await manager().check_auth()
 
 
 @mcp.tool(annotations=READ)
@@ -156,11 +184,12 @@ async def get_manager_context(
     league_id: str,
     week: int | None = None,
     mode: Literal["normal", "cache_only", "refresh"] | None = None,
+    sections: list[str] | None = None,
 ) -> dict:
-    """Read league facts, owned roster, projections, and optional chat for a private review."""
+    """Read league facts, owned roster, projections, and chat for a private review. Pass sections to limit output: settings, rosters, users, traded_picks, matchups, transactions, stats_and_projections, chat."""
     selected = cache_mode.set(mode)
     try:
-        return await manager().context(league_id, week)
+        return await manager().context(league_id, week, sections)
     finally:
         cache_mode.reset(selected)
 
@@ -185,8 +214,14 @@ async def get_all_leagues_summary(week: int | None = None) -> dict:
     for league in manager().config.leagues:
         try:
             results.append(await manager().context(league.league_id, week))
-        except (ValueError, TypeError, KeyError):
-            results.append({"league_id": league.league_id, "error": "invalid_upstream_data"})
+        except (ValueError, TypeError, KeyError) as error:
+            results.append(
+                {
+                    "league_id": league.league_id,
+                    "error": "invalid_upstream_data",
+                    "detail": f"{type(error).__name__}: {error}",
+                }
+            )
     return {"leagues": results}
 
 

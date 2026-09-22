@@ -29,9 +29,13 @@ async def execute(args):
                     continue
                 try:
                     reports.append(await manager.review(league.league_id, args.week))
-                except (ValueError, TypeError, KeyError):
+                except (ValueError, TypeError, KeyError) as error:
                     reports.append(
-                        {"league_id": league.league_id, "status": "invalid_upstream_data"}
+                        {
+                            "league_id": league.league_id,
+                            "status": "invalid_upstream_data",
+                            "detail": f"{type(error).__name__}: {error}",
+                        }
                     )
             print(json.dumps({"reports": reports}, indent=2))
         elif args.command == "health":

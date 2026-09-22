@@ -1,6 +1,7 @@
 import asyncio
 import json
 import time
+from pathlib import Path
 
 import httpx
 import pytest
@@ -442,6 +443,8 @@ async def test_week_projections_filter_rostered_and_keep_points(store, config):
         assert "authorization" not in request.headers
         if request.url.path.endswith("/rosters"):
             return httpx.Response(200, json=[{"players": ["1"]}])
+        if request.url.path == "/v1/league/11":
+            return httpx.Response(200, json={"scoring_settings": {"rec": 0.5, "rec_yd": 0.1}})
         assert request.url.host == "api.sleeper.com"
         assert request.url.path == "/projections/nfl/2026/2"
         assert request.url.params["position"] == "RB"
@@ -453,7 +456,13 @@ async def test_week_projections_filter_rostered_and_keep_points(store, config):
                     "player_id": "2",
                     "team": "SF",
                     "opponent": "SEA",
-                    "stats": {"pts_ppr": 12.5, "pts_half_ppr": 11.0, "pts_std": 9.5},
+                    "stats": {
+                        "pts_ppr": 12.5,
+                        "pts_half_ppr": 11.0,
+                        "pts_std": 9.5,
+                        "rec": 4,
+                        "rec_yd": 50,
+                    },
                     "player": {"first_name": "Kaelon", "last_name": "Black"},
                 },
             ],
@@ -464,6 +473,7 @@ async def test_week_projections_filter_rostered_and_keep_points(store, config):
     assert len(result["data"]) == 1
     assert result["data"][0]["name"] == "Kaelon Black"
     assert result["data"][0]["pts_ppr"] == 12.5
+    assert result["data"][0]["pts_league"] == 7.0
     with pytest.raises(ValueError):
         await manager.projections("26", 2, "RB", "proj", 50)
     await manager.client.close()
@@ -502,3 +512,133 @@ async def test_direct_post_sends_mutation_and_records_result(store, config, monk
     with pytest.raises(ValueError):
         await posting.send(manager, "11", " ")
     await manager.client.close()
+
+
+FIXTURE = json.loads(Path(__file__).with_name("fixtures").joinpath("league.json").read_text())
+
+
+@pytest.fixture
+async def fixture_manager(store):
+    """A manager backed by recorded responses for one real league and one matchup."""
+
+    def respond(request):
+        path = request.url.path
+        if path == "/v1/state/nfl":
+            return httpx.Response(200, json=FIXTURE["state"])
+        if path == "/v1/league/11":
+            return httpx.Response(200, json=FIXTURE["settings"])
+        if path.endswith("/rosters"):
+            return httpx.Response(200, json=FIXTURE["rosters"])
+        if path.endswith("/users"):
+            return httpx.Response(200, json=FIXTURE["users"])
+        if "/matchups/" in path:
+            return httpx.Response(200, json=FIXTURE["matchups"])
+        if path == "/v1/players/nfl":
+            return httpx.Response(200, json=FIXTURE["players"])
+        if path.startswith("/projections/"):
+            return httpx.Response(200, json=FIXTURE["projections"])
+        if path.startswith("/schedule/"):
+            return httpx.Response(200, json=FIXTURE["schedule"])
+        if path.startswith("/v1/players/nfl/trending/"):
+            return httpx.Response(200, json=[{"player_id": "4034", "count": 5}])
+        pytest.fail(f"Unexpected request {request.url}")
+
+    owner = FIXTURE["rosters"][0]["owner_id"]
+    config = Config(user_id=owner, leagues=[{"league_id": "11", "chat_enabled": True}])
+    manager = Manager(config, store, SleeperClient(store, httpx.MockTransport(respond)))
+    yield manager
+    await manager.client.close()
+
+
+def test_score_applies_league_weights():
+    from sleeper_mcp.service import score
+
+    scoring = FIXTURE["settings"]["scoring_settings"]
+    assert scoring["pass_td"] == 6.0
+    assert score({"pass_td": 2, "pass_yd": 100, "unknown": 9}, scoring) == 16.0
+    assert score(None, scoring) == 0.0
+
+
+async def test_matchup_view_joins_names_and_league_scoring(fixture_manager):
+    result = await fixture_manager.matchup("11")
+    assert result["week"] == 2
+    assert result["me"]["roster_id"] == 1
+    assert result["me"]["team_name"] == "Buck Nasty"
+    assert result["opponent"]["roster_id"] == 3
+    first = result["me"]["starters"][0]
+    assert first["slot"] == "QB"
+    assert first["name"].endswith("QB-LAR")
+    assert first["actual"] == 35.98
+    assert isinstance(first["projected"], float)
+    assert result["me"]["actual_total"] == 211.18
+    assert result["me"]["projected_total"] > 0
+    assert len(result["me"]["bench"]) == 5
+    assert not result["partial"]
+
+
+async def test_standings_sorted_with_names(fixture_manager):
+    result = await fixture_manager.standings("11")
+    rows = result["data"]
+    assert [r["rank"] for r in rows] == [1, 2]
+    assert rows[0]["team_name"] == "Buck Nasty"
+    assert rows[0]["wins"] == 2 and rows[1]["wins"] == 0
+    assert rows[0]["points_for"] == 361.52
+
+
+async def test_schedule_derives_bye_teams(store):
+    season = [
+        {"week": 1, "home": "A", "away": "B", "date": "2026-09-13", "status": "complete"},
+        {"week": 1, "home": "C", "away": "D", "date": "2026-09-13", "status": "complete"},
+        {"week": 2, "home": "A", "away": "C", "date": "2026-09-20", "status": "pending"},
+    ]
+    client = SleeperClient(store, httpx.MockTransport(lambda r: httpx.Response(200, json=season)))
+    manager = Manager(Config(user_id="1"), store, client)
+    result = await manager.schedule("2026", 2)
+    assert [g["home"] for g in result["data"]] == ["A"]
+    assert result["bye_teams"] == ["B", "D"]
+    await client.close()
+
+
+async def test_trending_rows_carry_names(fixture_manager):
+    result = await fixture_manager.trending("add", 24, 25)
+    row = result["data"][0]
+    assert row["name"] == "Christian McCaffrey"
+    assert row["position"] == "RB" and row["team"] == "SF"
+
+
+async def test_resolve_players_skips_unknown(fixture_manager):
+    names = await fixture_manager.resolve(["4034", "nope"])
+    assert names == {"4034": "Christian McCaffrey RB-SF"}
+
+
+async def test_context_sections_limit_fetches(fixture_manager):
+    result = await fixture_manager.context("11", 2, sections=["matchups"])
+    assert set(result["sections"]) == {"settings", "rosters", "matchups"}
+    assert result["my_roster"]["roster_id"] == 1
+    with pytest.raises(ValueError):
+        await fixture_manager.context("11", 2, sections=["nope"])
+
+
+async def test_check_auth_reports_expired_token(store, config, monkeypatch):
+    monkeypatch.setenv("SLEEPER_SESSION_TOKEN", "old")
+    client = SleeperClient(store, httpx.MockTransport(lambda r: httpx.Response(401)))
+    result = await Manager(config, store, client).check_auth()
+    assert result == {"ok": False, "error": "auth_required"}
+    await client.close()
+
+
+async def test_summary_error_includes_detail(store, config, monkeypatch):
+    from sleeper_mcp import server
+
+    class Broken:
+        pass
+
+    Broken.config = config
+
+    async def context(self, league_id, week=None):
+        raise KeyError("season")
+
+    Broken.context = context
+    monkeypatch.setattr(server, "manager", lambda: Broken())
+    result = await server.get_all_leagues_summary()
+    assert result["leagues"][0]["detail"] == "KeyError: 'season'"

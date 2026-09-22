@@ -18,8 +18,8 @@ For raw league data, an agent with `curl` can use the public Sleeper REST API. T
 **Awkward through the public API**
 
 - The player directory is a 14 MB JSON blob with no search. The server caches it once a day and adds name, position, and unrostered-in-this-league filters.
-- Week projections arrive as raw stat lines. The server returns PPR, half PPR, and standard point totals with names, opponent, and injury status.
-- Matchups and rosters use player IDs only. The server attaches a `player_names` map to both.
+- Week projections arrive as raw stat lines. The server returns point totals with names, opponent, and injury status, and applies your league's scoring settings.
+- Matchups and rosters use player IDs only. The server attaches a `player_names` map to both, and `get_matchup` returns both lineups fully resolved with league-scored projections.
 
 **Built in, so the agent does not have to build it**
 
@@ -167,7 +167,7 @@ Call these tools in order:
 
 1. `get_data_health`. It returns the configured leagues without a network request. `session_token_configured` shows whether the token reached the server.
 2. `get_nfl_state`. It confirms public API access.
-3. `get_league_chat` with a league ID. A result with `errors: []` confirms the token works.
+3. `check_auth`. It makes one authenticated request. When `ok` is false, ask the human for a new token.
 
 Then read `docs/manager-prompt.md` for how to act as a fantasy manager with these tools.
 
@@ -177,20 +177,25 @@ Then read `docs/manager-prompt.md` for how to act as a fantasy manager with thes
 | --- | --- |
 | `discover_leagues` | Leagues for the configured user and a season |
 | `get_nfl_state` | Current NFL season and week |
+| `get_matchup` | My lineup and my opponent's lineup for a week: names, injuries, league-scored projections, actual points, and totals |
+| `get_standings` | Standings sorted by wins then points, with team and manager names |
+| `get_schedule` | NFL games for a week with date and status, plus the teams on bye |
 | `get_league_data` | Settings, rosters, users, matchups, transactions, traded picks, drafts, or brackets. Rosters and matchups include a `player_names` map |
+| `resolve_players` | Map player IDs to `Name POS-TEAM` |
 | `get_draft_data` | A verified league draft and its picks |
 | `search_players` | Player directory search |
 | `get_unrostered_players` | Players absent from a league's rosters, with waiver clear times |
-| `get_week_projections` | Public week projections or stats with Sleeper point totals |
-| `get_trending_players` | Sleeper add and drop counts |
+| `get_week_projections` | Public week projections or stats with Sleeper point totals, plus `pts_league` when a league ID is given |
+| `get_trending_players` | Sleeper add and drop counts with names and positions |
 | `get_player_week_stats_and_projections` | Raw actual and projected statistics for given players |
 | `get_league_chat` | One chat page |
 | `search_league_chat` | Search of locally collected chat |
-| `get_manager_context` | League facts, owned roster, projections, and chat in one call |
+| `get_manager_context` | League facts, owned roster, projections, and chat. Pass `sections` to limit the output |
 | `get_all_leagues_summary` | A context for every configured league |
 | `run_manager_review` | Context plus a stored public-data snapshot |
 | `get_changes_since` | Changes between a snapshot and the latest one |
 | `get_data_health` | Configuration and capability limits |
+| `check_auth` | One authenticated request to test the session token |
 | `get_cache_status` | Local cache counts and policy |
 | `post_league_chat` | Send one chat message. Needs the token and explicit user authorization |
 | `prepare_chat_post`, `claim_chat_post`, `get_chat_post_status` | Browser-assisted posting for agents without the token |
@@ -232,9 +237,10 @@ Optional cache settings in `config.json`:
 
 ## Known limits
 
-- Projections use Sleeper's standard, half PPR, and PPR totals. Custom league scoring is not applied.
+- `get_matchup` and `get_week_projections` with a league ID apply the league's scoring settings to Sleeper's projected stat lines. Other projection tools return Sleeper's stock totals.
 - Without the token, `waiver_status` is `unknown`.
-- No kickoff, inactive-list, or news provider is connected.
+- `get_schedule` gives game dates and bye teams. Sleeper does not publish kickoff times through this endpoint.
+- No inactive-list or news provider is connected.
 - Chat search covers stored messages only, not complete upstream history.
 - There is no automatic token renewal.
 
